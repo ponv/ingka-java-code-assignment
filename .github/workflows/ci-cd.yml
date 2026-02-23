@@ -1,0 +1,54 @@
+name: CI/CD with Sonar Analysis
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  build-and-analyze:
+    name: Build and Analyze
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Shallow clones disabled for better Sonar analysis relevancy
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: 'maven'
+
+      - name: Cache SonarQube packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.sonar/cache
+          key: ${{ runner.os }}-sonar
+          restore-keys: ${{ runner.os }}-sonar
+
+      - name: Cache Maven packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2
+          key: ${{ runner.os }}-m2-${{ hashFiles('**/pom.xml') }}
+          restore-keys: ${{ runner.os }}-m2
+
+      - name: Build and Analyze
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # SonarQube or SonarCloud token must be configured in repository secrets
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          # Uncomment and set corresponding HOST_URL if using a self-hosted SonarQube instance
+          # SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+        run: >
+          mvn -B verify org.sonarsource.scanner.maven:sonar-maven-plugin:sonar
+          -Dsonar.projectKey=java-code-assignment
+          -Dsonar.organization=your-organization-key
+          -Dsonar.host.url=https://sonarcloud.io

@@ -37,12 +37,35 @@ public class ReplaceWarehouseUseCase implements ReplaceWarehouseOperation {
       throw new WarehouseValidationException("Invalid or unknown location: " + newWarehouse.location);
     }
 
-    // Capacity Accommodation: new capacity must accommodate stock from warehouse being replaced
+    // Location Feasibility: Check if location changes and max warehouses is reached
+    if (!existing.location.equals(newWarehouse.location)) {
+      long currentCount = warehouseStore.countActiveByLocation(newWarehouse.location);
+      if (currentCount >= loc.maxNumberOfWarehouses) {
+        throw new WarehouseValidationException(
+            "Maximum number of warehouses (" + loc.maxNumberOfWarehouses
+                + ") already reached for location: " + newWarehouse.location);
+      }
+    }
+
+    // Capacity Accommodation: new capacity must accommodate stock from warehouse
+    // being replaced
     int newCapacity = newWarehouse.capacity != null ? newWarehouse.capacity : 0;
     int existingStock = existing.stock != null ? existing.stock : 0;
     if (newCapacity < existingStock) {
       throw new WarehouseValidationException(
           "New warehouse capacity must accommodate existing stock (" + existingStock + ")");
+    }
+
+    // Capacity and Stock Validation: total capacity <= location max
+    int currentTotalCapacity = warehouseStore.sumCapacityByLocation(newWarehouse.location);
+    int existingCapacity = existing.location.equals(newWarehouse.location)
+        ? (existing.capacity != null ? existing.capacity : 0)
+        : 0;
+
+    if (currentTotalCapacity - existingCapacity + newCapacity > loc.maxCapacity) {
+      throw new WarehouseValidationException(
+          "Total capacity would exceed location max capacity " + loc.maxCapacity
+              + " for location: " + newWarehouse.location);
     }
 
     // Stock Matching: new warehouse stock must match previous warehouse stock
