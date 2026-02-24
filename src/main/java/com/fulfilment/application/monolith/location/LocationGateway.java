@@ -28,7 +28,7 @@ public class LocationGateway implements LocationResolver {
       return null;
     }
     return locations.stream()
-        .filter(loc -> identifier.equals(loc.identification))
+        .filter(loc -> identifier.equals(loc.getIdentification()))
         .findFirst()
         .orElse(null);
   }

@@ -6,10 +6,10 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import com.fulfilment.application.monolith.warehouses.domain.models.Location;
 import org.junit.jupiter.api.Test;
 
-public class LocationGatewayTest {
+class LocationGatewayTest {
 
   @Test
-  public void testWhenResolveExistingLocationShouldReturn() {
+  void testWhenResolveExistingLocationShouldReturn() {
     // given
     LocationGateway locationGateway = new LocationGateway();
 
@@ -17,19 +17,19 @@ public class LocationGatewayTest {
     Location location = locationGateway.resolveByIdentifier("ZWOLLE-001");
 
     // then
-    assertEquals("ZWOLLE-001", location.identification);
-    assertEquals(1, location.maxNumberOfWarehouses);
-    assertEquals(40, location.maxCapacity);
+    assertEquals("ZWOLLE-001", location.getIdentification());
+    assertEquals(1, location.getMaxNumberOfWarehouses());
+    assertEquals(40, location.getMaxCapacity());
   }
 
   @Test
-  public void testWhenResolveNonExistingLocationShouldReturnNull() {
+  void testWhenResolveNonExistingLocationShouldReturnNull() {
     LocationGateway locationGateway = new LocationGateway();
     assertNull(locationGateway.resolveByIdentifier("UNKNOWN-001"));
   }
 
   @Test
-  public void testWhenResolveNullIdentifierShouldReturnNull() {
+  void testWhenResolveNullIdentifierShouldReturnNull() {
     LocationGateway locationGateway = new LocationGateway();
     assertNull(locationGateway.resolveByIdentifier(null));
   }

@@ -12,9 +12,18 @@ public class Store extends PanacheEntity {
   @Column(length = 40, unique = true)
   public String name;
 
-  public int quantityProductsInStock;
+  private int quantityProductsInStock;
 
-  public Store() {}
+  public int getQuantityProductsInStock() {
+    return quantityProductsInStock;
+  }
+
+  public void setQuantityProductsInStock(int quantityProductsInStock) {
+    this.quantityProductsInStock = quantityProductsInStock;
+  }
+
+  public Store() {
+  }
 
   public Store(String name) {
     this.name = name;

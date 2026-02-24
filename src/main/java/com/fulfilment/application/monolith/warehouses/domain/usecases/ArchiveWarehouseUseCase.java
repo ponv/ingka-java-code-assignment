@@ -17,18 +17,19 @@ public class ArchiveWarehouseUseCase implements ArchiveWarehouseOperation {
   }
 
   @Override
+  @jakarta.transaction.Transactional
   public void archive(Warehouse warehouse) {
-    Warehouse existing = warehouseStore.findByBusinessUnitCode(warehouse.businessUnitCode);
+    Warehouse existing = warehouseStore.findByBusinessUnitCode(warehouse.getBusinessUnitCode());
     if (existing == null) {
       throw new WarehouseValidationException(
-          "Warehouse not found: " + warehouse.businessUnitCode);
+          "Warehouse not found: " + warehouse.getBusinessUnitCode());
     }
-    if (existing.archivedAt != null) {
+    if (existing.getArchivedAt() != null) {
       throw new WarehouseValidationException(
-          "Warehouse already archived: " + warehouse.businessUnitCode);
+          "Warehouse already archived: " + warehouse.getBusinessUnitCode());
     }
 
-    existing.archivedAt = ZonedDateTime.now();
+    existing.setArchivedAt(ZonedDateTime.now());
     warehouseStore.update(existing);
   }
 }

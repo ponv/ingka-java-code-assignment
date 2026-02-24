@@ -1,10 +1,10 @@
 package com.fulfilment.application.monolith.warehouses.domain.usecases;
 
 import com.fulfilment.application.monolith.warehouses.domain.WarehouseValidationException;
+import com.fulfilment.application.monolith.warehouses.domain.WarehouseValidator;
 import com.fulfilment.application.monolith.warehouses.domain.models.Location;
 import com.fulfilment.application.monolith.warehouses.domain.models.Warehouse;
 import com.fulfilment.application.monolith.warehouses.domain.ports.CreateWarehouseOperation;
-import com.fulfilment.application.monolith.warehouses.domain.ports.LocationResolver;
 import com.fulfilment.application.monolith.warehouses.domain.ports.WarehouseStore;
 import jakarta.enterprise.context.ApplicationScoped;
 import java.time.ZonedDateTime;
@@ -13,50 +13,33 @@ import java.time.ZonedDateTime;
 public class CreateWarehouseUseCase implements CreateWarehouseOperation {
 
   private final WarehouseStore warehouseStore;
-  private final LocationResolver locationResolver;
+  private final WarehouseValidator warehouseValidator;
 
-  public CreateWarehouseUseCase(WarehouseStore warehouseStore, LocationResolver locationResolver) {
+  public CreateWarehouseUseCase(WarehouseStore warehouseStore, WarehouseValidator warehouseValidator) {
     this.warehouseStore = warehouseStore;
-    this.locationResolver = locationResolver;
+    this.warehouseValidator = warehouseValidator;
   }
 
   @Override
+  @jakarta.transaction.Transactional
   public void create(Warehouse warehouse) {
-    // Business Unit Code Verification: must not already exist
-    if (warehouseStore.findByBusinessUnitCode(warehouse.businessUnitCode) != null) {
-      throw new WarehouseValidationException(
-          "Business unit code already exists: " + warehouse.businessUnitCode);
-    }
+    warehouseValidator.validateBusinessUnitCodeUnique(warehouse.getBusinessUnitCode());
 
-    // Location Validation: must be an existing valid location
-    Location loc = locationResolver.resolveByIdentifier(warehouse.location);
-    if (loc == null) {
-      throw new WarehouseValidationException("Invalid or unknown location: " + warehouse.location);
-    }
+    Location loc = warehouseValidator.validateLocation(warehouse.getLocation());
 
-    // Warehouse Creation Feasibility: max number of warehouses at location not exceeded
-    long currentCount = warehouseStore.countActiveByLocation(warehouse.location);
-    if (currentCount >= loc.maxNumberOfWarehouses) {
-      throw new WarehouseValidationException(
-          "Maximum number of warehouses (" + loc.maxNumberOfWarehouses
-              + ") already reached for location: " + warehouse.location);
-    }
+    warehouseValidator.validateLocationFeasibility(loc, warehouse.getLocation());
 
-    // Capacity and Stock Validation: capacity <= location max, capacity >= stock
-    int currentCapacity = warehouseStore.sumCapacityByLocation(warehouse.location);
-    int newCapacity = warehouse.capacity != null ? warehouse.capacity : 0;
-    int newStock = warehouse.stock != null ? warehouse.stock : 0;
-    if (currentCapacity + newCapacity > loc.maxCapacity) {
-      throw new WarehouseValidationException(
-          "Total capacity would exceed location max capacity " + loc.maxCapacity
-              + " for location: " + warehouse.location);
-    }
+    int newCapacity = warehouse.getCapacity() != null ? warehouse.getCapacity() : 0;
+    int newStock = warehouse.getStock() != null ? warehouse.getStock() : 0;
+
+    warehouseValidator.validateCapacity(loc, warehouse.getLocation(), newCapacity, null);
+
     if (newCapacity < newStock) {
       throw new WarehouseValidationException(
           "Warehouse capacity must be at least the stock amount");
     }
 
-    warehouse.creationAt = ZonedDateTime.now();
+    warehouse.setCreationAt(ZonedDateTime.now());
     warehouseStore.create(warehouse);
   }
 }

@@ -7,38 +7,39 @@ import jakarta.enterprise.context.ApplicationScoped;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
-import java.util.stream.Collectors;
 
 @ApplicationScoped
 public class WarehouseRepository implements WarehouseStore, PanacheRepository<DbWarehouse> {
 
+  private static final String BUSINESS_UNIT_CODE = "businessUnitCode";
+
   @Override
   public void create(Warehouse warehouse) {
     DbWarehouse db = toDb(warehouse);
-    db.createdAt = warehouse.creationAt != null
-        ? warehouse.creationAt.toLocalDateTime()
-        : LocalDateTime.now();
+    db.setCreatedAt(warehouse.getCreationAt() != null
+        ? warehouse.getCreationAt().toLocalDateTime()
+        : LocalDateTime.now());
     persist(db);
   }
 
   @Override
   public void update(Warehouse warehouse) {
-    DbWarehouse db = find("businessUnitCode", warehouse.businessUnitCode).firstResult();
+    DbWarehouse db = find(BUSINESS_UNIT_CODE, warehouse.getBusinessUnitCode()).firstResult();
     if (db == null) {
-      throw new IllegalArgumentException("Warehouse not found: " + warehouse.businessUnitCode);
+      throw new IllegalArgumentException("Warehouse not found: " + warehouse.getBusinessUnitCode());
     }
-    db.location = warehouse.location;
-    db.capacity = warehouse.capacity;
-    db.stock = warehouse.stock;
-    db.archivedAt = warehouse.archivedAt != null
-        ? warehouse.archivedAt.toLocalDateTime()
-        : null;
+    db.setLocation(warehouse.getLocation());
+    db.setCapacity(warehouse.getCapacity());
+    db.setStock(warehouse.getStock());
+    db.setArchivedAt(warehouse.getArchivedAt() != null
+        ? warehouse.getArchivedAt().toLocalDateTime()
+        : null);
     persist(db);
   }
 
   @Override
   public void remove(Warehouse warehouse) {
-    DbWarehouse db = find("businessUnitCode", warehouse.businessUnitCode).firstResult();
+    DbWarehouse db = find(BUSINESS_UNIT_CODE, warehouse.getBusinessUnitCode()).firstResult();
     if (db != null) {
       delete(db);
     }
@@ -46,7 +47,7 @@ public class WarehouseRepository implements WarehouseStore, PanacheRepository<Db
 
   @Override
   public Warehouse findByBusinessUnitCode(String buCode) {
-    DbWarehouse db = find("businessUnitCode", buCode).firstResult();
+    DbWarehouse db = find(BUSINESS_UNIT_CODE, buCode).firstResult();
     return db != null ? toDomain(db) : null;
   }
 
@@ -58,34 +59,34 @@ public class WarehouseRepository implements WarehouseStore, PanacheRepository<Db
   @Override
   public int sumCapacityByLocation(String locationId) {
     List<DbWarehouse> list = list("location = ?1 and archivedAt is null", locationId);
-    return list.stream().mapToInt(d -> d.capacity != null ? d.capacity : 0).sum();
+    return list.stream().mapToInt(d -> d.getCapacity() != null ? d.getCapacity() : 0).sum();
   }
 
   @Override
   public List<Warehouse> listActive() {
-    return list("archivedAt is null", io.quarkus.panache.common.Sort.ascending("businessUnitCode"))
+    return list("archivedAt is null", io.quarkus.panache.common.Sort.ascending(BUSINESS_UNIT_CODE))
         .stream()
         .map(WarehouseRepository::toDomain)
-        .collect(Collectors.toList());
+        .toList();
   }
 
   private static DbWarehouse toDb(Warehouse w) {
     DbWarehouse db = new DbWarehouse();
-    db.businessUnitCode = w.businessUnitCode;
-    db.location = w.location;
-    db.capacity = w.capacity;
-    db.stock = w.stock;
+    db.setBusinessUnitCode(w.getBusinessUnitCode());
+    db.setLocation(w.getLocation());
+    db.setCapacity(w.getCapacity());
+    db.setStock(w.getStock());
     return db;
   }
 
   private static Warehouse toDomain(DbWarehouse db) {
     Warehouse w = new Warehouse();
-    w.businessUnitCode = db.businessUnitCode;
-    w.location = db.location;
-    w.capacity = db.capacity;
-    w.stock = db.stock;
-    w.creationAt = db.createdAt != null ? db.createdAt.atZone(ZoneOffset.UTC) : null;
-    w.archivedAt = db.archivedAt != null ? db.archivedAt.atZone(ZoneOffset.UTC) : null;
+    w.setBusinessUnitCode(db.getBusinessUnitCode());
+    w.setLocation(db.getLocation());
+    w.setCapacity(db.getCapacity());
+    w.setStock(db.getStock());
+    w.setCreationAt(db.getCreatedAt() != null ? db.getCreatedAt().atZone(ZoneOffset.UTC) : null);
+    w.setArchivedAt(db.getArchivedAt() != null ? db.getArchivedAt().atZone(ZoneOffset.UTC) : null);
     return w;
   }
 }

@@ -1,10 +1,7 @@
 package com.fulfilment.application.monolith.stores;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.quarkus.panache.common.Sort;
 import jakarta.enterprise.context.ApplicationScoped;
-import jakarta.inject.Inject;
 import jakarta.transaction.Status;
 import jakarta.transaction.Synchronization;
 import jakarta.transaction.Transactional;
@@ -19,10 +16,7 @@ import jakarta.ws.rs.Path;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.WebApplicationException;
 import jakarta.ws.rs.core.Response;
-import jakarta.ws.rs.ext.ExceptionMapper;
-import jakarta.ws.rs.ext.Provider;
 import java.util.List;
-import org.jboss.logging.Logger;
 
 @Path("stores")
 @ApplicationScoped
@@ -30,13 +24,22 @@ import org.jboss.logging.Logger;
 @Consumes("application/json")
 public class StoreResource {
 
-  @Inject LegacyStoreManagerGateway legacyStoreManagerGateway;
-  @Inject TransactionManager transactionManager;
+  private final StoreRepository storeRepository;
+  private final LegacyStoreManagerGateway legacyStoreManagerGateway;
+  private final TransactionManager transactionManager;
 
-  private static final Logger LOGGER = Logger.getLogger(StoreResource.class.getName());
+  public StoreResource(
+      StoreRepository storeRepository,
+      LegacyStoreManagerGateway legacyStoreManagerGateway,
+      TransactionManager transactionManager) {
+    this.storeRepository = storeRepository;
+    this.legacyStoreManagerGateway = legacyStoreManagerGateway;
+    this.transactionManager = transactionManager;
+  }
 
   /**
-   * Registers a callback to notify the legacy system only after the current transaction has committed,
+   * Registers a callback to notify the legacy system only after the current
+   * transaction has committed,
    * so the legacy system receives confirmed data.
    */
   private void notifyLegacyAfterCommit(Runnable action) {
@@ -46,7 +49,9 @@ public class StoreResource {
           .registerSynchronization(
               new Synchronization() {
                 @Override
-                public void beforeCompletion() {}
+                public void beforeCompletion() {
+                  // No action required before completion
+                }
 
                 @Override
                 public void afterCompletion(int status) {
@@ -56,19 +61,19 @@ public class StoreResource {
                 }
               });
     } catch (Exception e) {
-      throw new RuntimeException("Failed to register post-commit sync", e);
+      throw new IllegalStateException("Failed to register post-commit sync", e);
     }
   }
 
   @GET
   public List<Store> get() {
-    return Store.listAll(Sort.by("name"));
+    return storeRepository.listAll(Sort.by("name"));
   }
 
   @GET
   @Path("{id}")
   public Store getSingle(Long id) {
-    Store entity = Store.findById(id);
+    Store entity = storeRepository.findById(id);
     if (entity == null) {
       throw new WebApplicationException("Store with id of " + id + " does not exist.", 404);
     }
@@ -81,8 +86,11 @@ public class StoreResource {
     if (store.id != null) {
       throw new WebApplicationException("Id was invalidly set on request.", 422);
     }
+    if (store.name == null) {
+      throw new WebApplicationException("Store Name was not set on request.", 422);
+    }
 
-    store.persist();
+    storeRepository.persist(store);
 
     notifyLegacyAfterCommit(() -> legacyStoreManagerGateway.createStoreOnLegacySystem(store));
 
@@ -97,14 +105,14 @@ public class StoreResource {
       throw new WebApplicationException("Store Name was not set on request.", 422);
     }
 
-    Store entity = Store.findById(id);
+    Store entity = storeRepository.findById(id);
 
     if (entity == null) {
       throw new WebApplicationException("Store with id of " + id + " does not exist.", 404);
     }
 
     entity.name = updatedStore.name;
-    entity.quantityProductsInStock = updatedStore.quantityProductsInStock;
+    entity.setQuantityProductsInStock(updatedStore.getQuantityProductsInStock());
 
     Store entityRef = entity;
     notifyLegacyAfterCommit(
@@ -121,7 +129,7 @@ public class StoreResource {
       throw new WebApplicationException("Store Name was not set on request.", 422);
     }
 
-    Store entity = Store.findById(id);
+    Store entity = storeRepository.findById(id);
 
     if (entity == null) {
       throw new WebApplicationException("Store with id of " + id + " does not exist.", 404);
@@ -131,8 +139,8 @@ public class StoreResource {
       entity.name = updatedStore.name;
     }
 
-    if (entity.quantityProductsInStock != 0) {
-      entity.quantityProductsInStock = updatedStore.quantityProductsInStock;
+    if (entity.getQuantityProductsInStock() != 0) {
+      entity.setQuantityProductsInStock(updatedStore.getQuantityProductsInStock());
     }
 
     Store entityRef = entity;
@@ -146,37 +154,12 @@ public class StoreResource {
   @Path("{id}")
   @Transactional
   public Response delete(Long id) {
-    Store entity = Store.findById(id);
+    Store entity = storeRepository.findById(id);
     if (entity == null) {
       throw new WebApplicationException("Store with id of " + id + " does not exist.", 404);
     }
-    entity.delete();
+    storeRepository.delete(entity);
     return Response.status(204).build();
   }
 
-  @Provider
-  public static class ErrorMapper implements ExceptionMapper<Exception> {
-
-    @Inject ObjectMapper objectMapper;
-
-    @Override
-    public Response toResponse(Exception exception) {
-      LOGGER.error("Failed to handle request", exception);
-
-      int code = 500;
-      if (exception instanceof WebApplicationException) {
-        code = ((WebApplicationException) exception).getResponse().getStatus();
-      }
-
-      ObjectNode exceptionJson = objectMapper.createObjectNode();
-      exceptionJson.put("exceptionType", exception.getClass().getName());
-      exceptionJson.put("code", code);
-
-      if (exception.getMessage() != null) {
-        exceptionJson.put("error", exception.getMessage());
-      }
-
-      return Response.status(code).entity(exceptionJson).build();
-    }
-  }
 }

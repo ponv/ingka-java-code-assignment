@@ -11,7 +11,9 @@ import java.math.BigDecimal;
 @Cacheable
 public class Product {
 
-  @Id @GeneratedValue public Long id;
+  @Id
+  @GeneratedValue
+  public Long id;
 
   @Column(length = 40, unique = true)
   public String name;
@@ -22,9 +24,18 @@ public class Product {
   @Column(precision = 10, scale = 2, nullable = true)
   public BigDecimal price;
 
-  public int stock;
+  private int stock;
 
-  public Product() {}
+  public int getStock() {
+    return stock;
+  }
+
+  public void setStock(int stock) {
+    this.stock = stock;
+  }
+
+  public Product() {
+  }
 
   public Product(String name) {
     this.name = name;

@@ -1,9 +1,9 @@
 package com.fulfilment.application.monolith.warehouses.domain.usecases;
 
 import com.fulfilment.application.monolith.warehouses.domain.WarehouseValidationException;
+import com.fulfilment.application.monolith.warehouses.domain.WarehouseValidator;
 import com.fulfilment.application.monolith.warehouses.domain.models.Location;
 import com.fulfilment.application.monolith.warehouses.domain.models.Warehouse;
-import com.fulfilment.application.monolith.warehouses.domain.ports.LocationResolver;
 import com.fulfilment.application.monolith.warehouses.domain.ports.ReplaceWarehouseOperation;
 import com.fulfilment.application.monolith.warehouses.domain.ports.WarehouseStore;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -12,70 +12,52 @@ import jakarta.enterprise.context.ApplicationScoped;
 public class ReplaceWarehouseUseCase implements ReplaceWarehouseOperation {
 
   private final WarehouseStore warehouseStore;
-  private final LocationResolver locationResolver;
+  private final WarehouseValidator warehouseValidator;
 
-  public ReplaceWarehouseUseCase(WarehouseStore warehouseStore, LocationResolver locationResolver) {
+  public ReplaceWarehouseUseCase(WarehouseStore warehouseStore, WarehouseValidator warehouseValidator) {
     this.warehouseStore = warehouseStore;
-    this.locationResolver = locationResolver;
+    this.warehouseValidator = warehouseValidator;
   }
 
   @Override
+  @jakarta.transaction.Transactional
   public void replace(Warehouse newWarehouse) {
-    Warehouse existing = warehouseStore.findByBusinessUnitCode(newWarehouse.businessUnitCode);
+    Warehouse existing = warehouseStore.findByBusinessUnitCode(newWarehouse.getBusinessUnitCode());
     if (existing == null) {
       throw new WarehouseValidationException(
-          "Warehouse not found: " + newWarehouse.businessUnitCode);
+          "Warehouse not found: " + newWarehouse.getBusinessUnitCode());
     }
-    if (existing.archivedAt != null) {
+    if (existing.getArchivedAt() != null) {
       throw new WarehouseValidationException(
-          "Cannot replace archived warehouse: " + newWarehouse.businessUnitCode);
+          "Cannot replace archived warehouse: " + newWarehouse.getBusinessUnitCode());
     }
 
-    // Location Validation
-    Location loc = locationResolver.resolveByIdentifier(newWarehouse.location);
-    if (loc == null) {
-      throw new WarehouseValidationException("Invalid or unknown location: " + newWarehouse.location);
+    Location loc = warehouseValidator.validateLocation(newWarehouse.getLocation());
+
+    if (!existing.getLocation().equals(newWarehouse.getLocation())) {
+      warehouseValidator.validateLocationFeasibility(loc, newWarehouse.getLocation());
     }
 
-    // Location Feasibility: Check if location changes and max warehouses is reached
-    if (!existing.location.equals(newWarehouse.location)) {
-      long currentCount = warehouseStore.countActiveByLocation(newWarehouse.location);
-      if (currentCount >= loc.maxNumberOfWarehouses) {
-        throw new WarehouseValidationException(
-            "Maximum number of warehouses (" + loc.maxNumberOfWarehouses
-                + ") already reached for location: " + newWarehouse.location);
-      }
-    }
-
-    // Capacity Accommodation: new capacity must accommodate stock from warehouse
-    // being replaced
-    int newCapacity = newWarehouse.capacity != null ? newWarehouse.capacity : 0;
-    int existingStock = existing.stock != null ? existing.stock : 0;
+    int newCapacity = newWarehouse.getCapacity() != null ? newWarehouse.getCapacity() : 0;
+    int existingStock = existing.getStock() != null ? existing.getStock() : 0;
     if (newCapacity < existingStock) {
       throw new WarehouseValidationException(
           "New warehouse capacity must accommodate existing stock (" + existingStock + ")");
     }
 
-    // Capacity and Stock Validation: total capacity <= location max
-    int currentTotalCapacity = warehouseStore.sumCapacityByLocation(newWarehouse.location);
-    int existingCapacity = existing.location.equals(newWarehouse.location)
-        ? (existing.capacity != null ? existing.capacity : 0)
-        : 0;
+    Integer existingCapacity = existing.getLocation().equals(newWarehouse.getLocation())
+        ? existing.getCapacity()
+        : null;
 
-    if (currentTotalCapacity - existingCapacity + newCapacity > loc.maxCapacity) {
-      throw new WarehouseValidationException(
-          "Total capacity would exceed location max capacity " + loc.maxCapacity
-              + " for location: " + newWarehouse.location);
-    }
+    warehouseValidator.validateCapacity(loc, newWarehouse.getLocation(), newCapacity, existingCapacity);
 
-    // Stock Matching: new warehouse stock must match previous warehouse stock
-    int newStock = newWarehouse.stock != null ? newWarehouse.stock : 0;
+    int newStock = newWarehouse.getStock() != null ? newWarehouse.getStock() : 0;
     if (newStock != existingStock) {
       throw new WarehouseValidationException(
           "Stock of the new warehouse must match the previous warehouse stock (" + existingStock + ")");
     }
 
-    newWarehouse.creationAt = existing.creationAt;
+    newWarehouse.setCreationAt(existing.getCreationAt());
     warehouseStore.update(newWarehouse);
   }
 }

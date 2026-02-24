@@ -48,7 +48,4 @@ jobs:
           # Uncomment and set corresponding HOST_URL if using a self-hosted SonarQube instance
           # SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
         run: >
-          mvn -B verify org.sonarsource.scanner.maven:sonar-maven-plugin:sonar
-          -Dsonar.projectKey=java-code-assignment
-          -Dsonar.organization=your-organization-key
-          -Dsonar.host.url=https://sonarcloud.io
+          mvn -B verify

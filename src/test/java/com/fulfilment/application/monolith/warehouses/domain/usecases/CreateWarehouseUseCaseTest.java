@@ -4,104 +4,61 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 import com.fulfilment.application.monolith.warehouses.domain.WarehouseValidationException;
+import com.fulfilment.application.monolith.warehouses.domain.WarehouseValidator;
 import com.fulfilment.application.monolith.warehouses.domain.models.Location;
 import com.fulfilment.application.monolith.warehouses.domain.models.Warehouse;
-import com.fulfilment.application.monolith.warehouses.domain.ports.LocationResolver;
 import com.fulfilment.application.monolith.warehouses.domain.ports.WarehouseStore;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
-public class CreateWarehouseUseCaseTest {
+class CreateWarehouseUseCaseTest {
 
     @Mock
     private WarehouseStore warehouseStore;
     @Mock
-    private LocationResolver locationResolver;
+    private WarehouseValidator validator;
 
     private CreateWarehouseUseCase useCase;
 
     @BeforeEach
-    public void setup() {
+    void setup() {
         MockitoAnnotations.openMocks(this);
-        useCase = new CreateWarehouseUseCase(warehouseStore, locationResolver);
+        useCase = new CreateWarehouseUseCase(warehouseStore, validator);
     }
 
     @Test
-    public void testCreateSuccess() {
+    void testCreateSuccess() {
         Warehouse warehouse = new Warehouse();
-        warehouse.businessUnitCode = "BU-1";
-        warehouse.location = "LOC-1";
-        warehouse.capacity = 100;
-        warehouse.stock = 50;
+        warehouse.setBusinessUnitCode("BU-1");
+        warehouse.setLocation("LOC-1");
+        warehouse.setCapacity(100);
+        warehouse.setStock(50);
 
-        Location location = new Location("LOC-1", 2, 200);
-
-        when(warehouseStore.findByBusinessUnitCode("BU-1")).thenReturn(null);
-        when(locationResolver.resolveByIdentifier("LOC-1")).thenReturn(location);
-        when(warehouseStore.countActiveByLocation("LOC-1")).thenReturn(1L);
-        when(warehouseStore.sumCapacityByLocation("LOC-1")).thenReturn(50);
+        when(validator.validateLocation("LOC-1")).thenReturn(new Location("LOC-1", 1, 100));
 
         useCase.create(warehouse);
 
+        verify(validator).validateBusinessUnitCodeUnique("BU-1");
+        verify(validator).validateLocation("LOC-1");
+        verify(validator).validateLocationFeasibility(any(), eq("LOC-1"));
+        verify(validator).validateCapacity(any(), eq("LOC-1"), eq(100), isNull());
         verify(warehouseStore).create(warehouse);
-        assertNotNull(warehouse.creationAt);
+        assertNotNull(warehouse.getCreationAt());
     }
 
     @Test
-    public void testCreateFailsIfCodeExists() {
+    void testCreateFailsIfCapacityLowerThanStock() {
         Warehouse warehouse = new Warehouse();
-        warehouse.businessUnitCode = "BU-1";
+        warehouse.setBusinessUnitCode("BU-1");
+        warehouse.setLocation("LOC-1");
+        warehouse.setCapacity(40);
+        warehouse.setStock(50);
 
-        when(warehouseStore.findByBusinessUnitCode("BU-1")).thenReturn(new Warehouse());
+        when(validator.validateLocation("LOC-1")).thenReturn(new Location("LOC-1", 1, 100));
 
         assertThrows(WarehouseValidationException.class, () -> useCase.create(warehouse));
         verify(warehouseStore, never()).create(any());
-    }
-
-    @Test
-    public void testCreateFailsIfLocationInvalid() {
-        Warehouse warehouse = new Warehouse();
-        warehouse.businessUnitCode = "BU-1";
-        warehouse.location = "UNKNOWN";
-
-        when(warehouseStore.findByBusinessUnitCode("BU-1")).thenReturn(null);
-        when(locationResolver.resolveByIdentifier("UNKNOWN")).thenReturn(null);
-
-        assertThrows(WarehouseValidationException.class, () -> useCase.create(warehouse));
-    }
-
-    @Test
-    public void testCreateFailsIfMaxWarehousesReached() {
-        Warehouse warehouse = new Warehouse();
-        warehouse.businessUnitCode = "BU-1";
-        warehouse.location = "LOC-1";
-
-        Location location = new Location("LOC-1", 1, 200);
-
-        when(warehouseStore.findByBusinessUnitCode("BU-1")).thenReturn(null);
-        when(locationResolver.resolveByIdentifier("LOC-1")).thenReturn(location);
-        when(warehouseStore.countActiveByLocation("LOC-1")).thenReturn(1L);
-
-        assertThrows(WarehouseValidationException.class, () -> useCase.create(warehouse));
-    }
-
-    @Test
-    public void testCreateFailsIfCapacityExceedsMax() {
-        Warehouse warehouse = new Warehouse();
-        warehouse.businessUnitCode = "BU-1";
-        warehouse.location = "LOC-1";
-        warehouse.capacity = 100;
-        warehouse.stock = 50;
-
-        Location location = new Location("LOC-1", 2, 150);
-
-        when(warehouseStore.findByBusinessUnitCode("BU-1")).thenReturn(null);
-        when(locationResolver.resolveByIdentifier("LOC-1")).thenReturn(location);
-        when(warehouseStore.countActiveByLocation("LOC-1")).thenReturn(0L);
-        when(warehouseStore.sumCapacityByLocation("LOC-1")).thenReturn(100);
-
-        assertThrows(WarehouseValidationException.class, () -> useCase.create(warehouse));
     }
 }

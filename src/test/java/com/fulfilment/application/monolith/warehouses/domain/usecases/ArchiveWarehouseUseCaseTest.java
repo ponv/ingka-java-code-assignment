@@ -12,7 +12,7 @@ import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 import java.time.ZonedDateTime;
 
-public class ArchiveWarehouseUseCaseTest {
+class ArchiveWarehouseUseCaseTest {
 
     @Mock
     private WarehouseStore warehouseStore;
@@ -20,31 +20,31 @@ public class ArchiveWarehouseUseCaseTest {
     private ArchiveWarehouseUseCase useCase;
 
     @BeforeEach
-    public void setup() {
+    void setup() {
         MockitoAnnotations.openMocks(this);
         useCase = new ArchiveWarehouseUseCase(warehouseStore);
     }
 
     @Test
-    public void testArchiveSuccess() {
+    void testArchiveSuccess() {
         Warehouse warehouse = new Warehouse();
-        warehouse.businessUnitCode = "BU-1";
+        warehouse.setBusinessUnitCode("BU-1");
 
         Warehouse existing = new Warehouse();
-        existing.businessUnitCode = "BU-1";
+        existing.setBusinessUnitCode("BU-1");
 
         when(warehouseStore.findByBusinessUnitCode("BU-1")).thenReturn(existing);
 
         useCase.archive(warehouse);
 
         verify(warehouseStore).update(existing);
-        assertNotNull(existing.archivedAt);
+        assertNotNull(existing.getArchivedAt());
     }
 
     @Test
-    public void testArchiveFailsIfNotFound() {
+    void testArchiveFailsIfNotFound() {
         Warehouse warehouse = new Warehouse();
-        warehouse.businessUnitCode = "BU-1";
+        warehouse.setBusinessUnitCode("BU-1");
 
         when(warehouseStore.findByBusinessUnitCode("BU-1")).thenReturn(null);
 
@@ -53,13 +53,13 @@ public class ArchiveWarehouseUseCaseTest {
     }
 
     @Test
-    public void testArchiveFailsIfAlreadyArchived() {
+    void testArchiveFailsIfAlreadyArchived() {
         Warehouse warehouse = new Warehouse();
-        warehouse.businessUnitCode = "BU-1";
+        warehouse.setBusinessUnitCode("BU-1");
 
         Warehouse existing = new Warehouse();
-        existing.businessUnitCode = "BU-1";
-        existing.archivedAt = ZonedDateTime.now();
+        existing.setBusinessUnitCode("BU-1");
+        existing.setArchivedAt(ZonedDateTime.now());
 
         when(warehouseStore.findByBusinessUnitCode("BU-1")).thenReturn(existing);
 
